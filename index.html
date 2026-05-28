@@ -3,38 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pong Game</title>
+    <title>Weather Dashboard</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <div class="scoreboard">
-            <div class="score">
-                <h2>Player</h2>
-                <p id="playerScore">0</p>
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-cloud"></i> Weather Dashboard</h1>
+            <p class="subtitle">Real-time weather information at your fingertips</p>
+        </header>
+
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Enter city name (e.g., London, New York, Tokyo)..."
+                    autocomplete="off"
+                >
+                <button id="searchBtn" class="btn-search">
+                    <i class="fas fa-search"></i> Search
+                </button>
             </div>
-            <div class="score">
-                <h2>Computer</h2>
-                <p id="computerScore">0</p>
+            <div class="suggestions" id="suggestions"></div>
+        </div>
+
+        <!-- Current Weather Section -->
+        <div class="current-weather" id="currentWeather">
+            <div class="weather-loader">
+                <div class="spinner"></div>
+                <p>Loading weather data...</p>
             </div>
         </div>
-        
-        <div class="game-board">
-            <div id="leftPaddle" class="paddle left-paddle"></div>
-            <div id="ball" class="ball"></div>
-            <div id="rightPaddle" class="paddle right-paddle"></div>
-            
-            <!-- Center line -->
-            <div class="center-line"></div>
+
+        <!-- Main Content -->
+        <div class="content" id="mainContent" style="display: none;">
+            <!-- Current Weather Card -->
+            <section class="weather-card current">
+                <div class="weather-header">
+                    <div class="weather-location">
+                        <h2 id="cityName"></h2>
+                        <p id="currentDate"></p>
+                    </div>
+                    <div class="weather-icon-large">
+                        <img id="weatherIcon" src="" alt="Weather">
+                    </div>
+                </div>
+                
+                <div class="temperature-section">
+                    <div class="temp-display">
+                        <span id="temperature" class="temp-value"></span>
+                        <span class="temp-unit">°C</span>
+                    </div>
+                    <div class="feels-like">
+                        <p>Feels like <span id="feelsLike"></span>°C</p>
+                    </div>
+                </div>
+
+                <div class="weather-description">
+                    <p id="description"></p>
+                </div>
+
+                <div class="weather-details-grid">
+                    <div class="detail-item">
+                        <i class="fas fa-tint"></i>
+                        <span>Humidity</span>
+                        <strong id="humidity"></strong>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-wind"></i>
+                        <span>Wind Speed</span>
+                        <strong id="windSpeed"></strong>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-compress"></i>
+                        <span>Pressure</span>
+                        <strong id="pressure"></strong>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-eye"></i>
+                        <span>Visibility</span>
+                        <strong id="visibility"></strong>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>Max Temp</span>
+                        <strong id="maxTemp"></strong>
+                    </div>
+                    <div class="detail-item">
+                        <i class="fas fa-arrow-down"></i>
+                        <span>Min Temp</span>
+                        <strong id="minTemp"></strong>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Forecast Section -->
+            <section class="forecast-section">
+                <h3><i class="fas fa-calendar-days"></i> 5-Day Forecast</h3>
+                <div class="forecast-container" id="forecastContainer"></div>
+            </section>
+
+            <!-- Air Quality Section -->
+            <section class="air-quality-section">
+                <h3><i class="fas fa-smog"></i> Air Quality</h3>
+                <div class="air-quality-card" id="airQualityCard">
+                    <div class="aqi-index">
+                        <div class="aqi-value" id="aqiValue"></div>
+                        <div class="aqi-label" id="aqiLabel"></div>
+                    </div>
+                    <div class="pollutants">
+                        <div class="pollutant">
+                            <span>PM2.5</span>
+                            <strong id="pm25"></strong>
+                        </div>
+                        <div class="pollutant">
+                            <span>PM10</span>
+                            <strong id="pm10"></strong>
+                        </div>
+                        <div class="pollutant">
+                            <span>NO₂</span>
+                            <strong id="no2"></strong>
+                        </div>
+                        <div class="pollutant">
+                            <span>O₃</span>
+                            <strong id="o3"></strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
-        
-        <div class="controls">
-            <p>Use <strong>Arrow Keys</strong> (↑/↓) or <strong>Mouse</strong> to move your paddle</p>
-            <button id="startBtn" class="btn">Start Game</button>
-            <button id="resetBtn" class="btn">Reset Score</button>
+
+        <!-- Error Message -->
+        <div class="error-message" id="errorMessage" style="display: none;">
+            <i class="fas fa-exclamation-circle"></i>
+            <p id="errorText"></p>
         </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Weather data provided by <a href="https://openweathermap.org/" target="_blank">OpenWeatherMap</a></p>
+            <p class="last-updated">Last updated: <span id="lastUpdate"></span></p>
+        </footer>
     </div>
-    
+
     <script src="script.js"></script>
 </body>
 </html>

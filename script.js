@@ -1,233 +1,300 @@
-// Game variables
-const gameBoard = document.querySelector('.game-board');
-const leftPaddle = document.getElementById('leftPaddle');
-const rightPaddle = document.getElementById('rightPaddle');
-const ball = document.getElementById('ball');
-const playerScoreDisplay = document.getElementById('playerScore');
-const computerScoreDisplay = document.getElementById('computerScore');
-const startBtn = document.getElementById('startBtn');
-const resetBtn = document.getElementById('resetBtn');
+// Weather API Configuration
+const API_KEY = 'demo'; // Replace with your own API key from openweathermap.org
+const WEATHER_API_URL = 'https://api.openweathermap.org/data/2.5/weather';
+const FORECAST_API_URL = 'https://api.openweathermap.org/data/2.5/forecast';
+const GEOCODING_API_URL = 'https://api.openweathermap.org/geo/1.0/direct';
+const AIR_QUALITY_API_URL = 'https://api.openweathermap.org/data/2.5/air_pollution';
 
-// Game constants
-const GAME_WIDTH = 800;
-const GAME_HEIGHT = 400;
-const PADDLE_HEIGHT = 80;
-const PADDLE_WIDTH = 15;
-const BALL_SIZE = 15;
-const PADDLE_SPEED = 6;
-const BALL_SPEED = 5;
-const MAX_BALL_SPEED = 8;
+// Default cities for suggestions
+const DEFAULT_CITIES = [
+    'London',
+    'New York',
+    'Tokyo',
+    'Paris',
+    'Sydney',
+    'Dubai',
+    'Singapore',
+    'Toronto'
+];
 
-// Game state
-let gameRunning = false;
-let playerScore = 0;
-let computerScore = 0;
+// DOM Elements
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const suggestionsDiv = document.getElementById('suggestions');
+const currentWeatherDiv = document.getElementById('currentWeather');
+const mainContent = document.getElementById('mainContent');
+const errorMessage = document.getElementById('errorMessage');
+const errorText = document.getElementById('errorText');
+const lastUpdate = document.getElementById('lastUpdate');
 
-// Paddle positions
-let leftPaddleY = GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-let rightPaddleY = GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-
-// Ball properties
-let ballX = GAME_WIDTH / 2;
-let ballY = GAME_HEIGHT / 2;
-let ballVelX = BALL_SPEED;
-let ballVelY = BALL_SPEED;
-
-// Input handling
-let keys = {};
-let mouseY = GAME_HEIGHT / 2;
-
-// Event listeners
-document.addEventListener('keydown', (e) => {
-    keys[e.key] = true;
+// Event Listeners
+searchBtn.addEventListener('click', searchWeather);
+searchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') searchWeather();
 });
 
-document.addEventListener('keyup', (e) => {
-    keys[e.key] = false;
+// Initialize
+window.addEventListener('DOMContentLoaded', () => {
+    loadDefaultSuggestions();
+    // Load weather for a default city
+    fetchWeatherByCity('London');
 });
 
-gameBoard.addEventListener('mousemove', (e) => {
-    const rect = gameBoard.getBoundingClientRect();
-    mouseY = e.clientY - rect.top;
-});
-
-startBtn.addEventListener('click', toggleGame);
-resetBtn.addEventListener('click', resetGame);
-
-// Initialize paddle positions
-function updatePaddlePositions() {
-    leftPaddle.style.top = leftPaddleY + 'px';
-    rightPaddle.style.top = rightPaddleY + 'px';
+// Load default city suggestions
+function loadDefaultSuggestions() {
+    suggestionsDiv.innerHTML = '';
+    DEFAULT_CITIES.forEach(city => {
+        const suggestion = document.createElement('div');
+        suggestion.className = 'suggestion-item';
+        suggestion.textContent = city;
+        suggestion.addEventListener('click', () => {
+            searchInput.value = city;
+            fetchWeatherByCity(city);
+        });
+        suggestionsDiv.appendChild(suggestion);
+    });
 }
 
-// Initialize ball position
-function updateBallPosition() {
-    ball.style.left = ballX + 'px';
-    ball.style.top = ballY + 'px';
+// Search weather
+function searchWeather() {
+    const city = searchInput.value.trim();
+    if (city) {
+        fetchWeatherByCity(city);
+    }
 }
 
-// Move paddles
-function movePaddles() {
-    // Left paddle - player control (mouse and keyboard)
-    if (keys['ArrowUp'] || keys['w'] || keys['W']) {
-        leftPaddleY = Math.max(0, leftPaddleY - PADDLE_SPEED);
-    }
-    if (keys['ArrowDown'] || keys['s'] || keys['S']) {
-        leftPaddleY = Math.min(GAME_HEIGHT - PADDLE_HEIGHT, leftPaddleY + PADDLE_SPEED);
-    }
-    
-    // Mouse control for left paddle
-    const paddleCenter = leftPaddleY + PADDLE_HEIGHT / 2;
-    const diff = mouseY - paddleCenter;
-    if (Math.abs(diff) > 10) {
-        leftPaddleY += diff * 0.08;
-        leftPaddleY = Math.max(0, Math.min(GAME_HEIGHT - PADDLE_HEIGHT, leftPaddleY));
-    }
-    
-    // Right paddle - AI control
-    const rightPaddleCenter = rightPaddleY + PADDLE_HEIGHT / 2;
-    const ballDiff = ballY - rightPaddleCenter;
-    
-    // AI difficulty: follows ball with slight delay/imperfection
-    if (ballVelX > 0 && ballX > GAME_WIDTH / 2) {
-        if (ballDiff > 15) {
-            rightPaddleY = Math.min(GAME_HEIGHT - PADDLE_HEIGHT, rightPaddleY + PADDLE_SPEED * 0.9);
-        } else if (ballDiff < -15) {
-            rightPaddleY = Math.max(0, rightPaddleY - PADDLE_SPEED * 0.9);
+// Fetch weather by city name
+async function fetchWeatherByCity(city) {
+    try {
+        showLoading();
+        hideError();
+
+        // If using demo mode, show a notice
+        if (API_KEY === 'demo') {
+            showDemoMessage();
+            return;
         }
-    }
-    
-    updatePaddlePositions();
-}
 
-// Move ball
-function moveBall() {
-    ballX += ballVelX;
-    ballY += ballVelY;
-    
-    // Wall collisions (top and bottom)
-    if (ballY <= 0 || ballY + BALL_SIZE >= GAME_HEIGHT) {
-        ballVelY = -ballVelY;
-        ballY = Math.max(0, Math.min(GAME_HEIGHT - BALL_SIZE, ballY));
-    }
-    
-    updateBallPosition();
-}
+        // Get coordinates from city name
+        const geoResponse = await fetch(
+            `${GEOCODING_API_URL}?q=${city}&limit=1&appid=${API_KEY}`
+        );
 
-// Paddle collision detection
-function checkPaddleCollision() {
-    // Left paddle collision
-    if (
-        ballX <= leftPaddle.offsetLeft + PADDLE_WIDTH &&
-        ballY + BALL_SIZE >= leftPaddleY &&
-        ballY <= leftPaddleY + PADDLE_HEIGHT &&
-        ballVelX < 0
-    ) {
-        ballVelX = -ballVelX;
-        ballX = leftPaddle.offsetLeft + PADDLE_WIDTH;
-        
-        // Add spin based on where ball hits paddle
-        const hitPos = (ballY - leftPaddleY) / PADDLE_HEIGHT - 0.5;
-        ballVelY += hitPos * 4;
-        
-        // Speed up ball slightly
-        const speed = Math.sqrt(ballVelX ** 2 + ballVelY ** 2);
-        if (speed < MAX_BALL_SPEED) {
-            ballVelX *= 1.02;
-            ballVelY *= 1.02;
+        if (!geoResponse.ok) {
+            throw new Error('City not found');
         }
-    }
-    
-    // Right paddle collision
-    if (
-        ballX + BALL_SIZE >= rightPaddle.offsetLeft &&
-        ballY + BALL_SIZE >= rightPaddleY &&
-        ballY <= rightPaddleY + PADDLE_HEIGHT &&
-        ballVelX > 0
-    ) {
-        ballVelX = -ballVelX;
-        ballX = rightPaddle.offsetLeft - BALL_SIZE;
-        
-        // Add spin based on where ball hits paddle
-        const hitPos = (ballY - rightPaddleY) / PADDLE_HEIGHT - 0.5;
-        ballVelY += hitPos * 4;
-        
-        // Speed up ball slightly
-        const speed = Math.sqrt(ballVelX ** 2 + ballVelY ** 2);
-        if (speed < MAX_BALL_SPEED) {
-            ballVelX *= 1.02;
-            ballVelY *= 1.02;
+
+        const geoData = await geoResponse.json();
+        if (geoData.length === 0) {
+            throw new Error('City not found');
         }
+
+        const { lat, lon } = geoData[0];
+        await Promise.all([
+            fetchCurrentWeather(lat, lon),
+            fetchForecast(lat, lon),
+            fetchAirQuality(lat, lon)
+        ]);
+    } catch (error) {
+        showError(error.message || 'Failed to fetch weather data');
+        console.error('Error:', error);
     }
 }
 
-// Check for score
-function checkScore() {
-    if (ballX < 0) {
-        computerScore++;
-        computerScoreDisplay.textContent = computerScore;
-        resetBall();
-    } else if (ballX > GAME_WIDTH) {
-        playerScore++;
-        playerScoreDisplay.textContent = playerScore;
-        resetBall();
-    }
+// Fetch current weather
+async function fetchCurrentWeather(lat, lon) {
+    const response = await fetch(
+        `${WEATHER_API_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`
+    );
+    const data = await response.json();
+    displayCurrentWeather(data);
 }
 
-// Reset ball to center
-function resetBall() {
-    ballX = GAME_WIDTH / 2;
-    ballY = GAME_HEIGHT / 2;
-    ballVelX = BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
-    ballVelY = BALL_SPEED * (Math.random() * 2 - 1);
-    updateBallPosition();
+// Fetch forecast
+async function fetchForecast(lat, lon) {
+    const response = await fetch(
+        `${FORECAST_API_URL}?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`
+    );
+    const data = await response.json();
+    displayForecast(data);
 }
 
-// Game loop
-function gameLoop() {
-    if (gameRunning) {
-        movePaddles();
-        moveBall();
-        checkPaddleCollision();
-        checkScore();
-    }
-    requestAnimationFrame(gameLoop);
+// Fetch air quality
+async function fetchAirQuality(lat, lon) {
+    const response = await fetch(
+        `${AIR_QUALITY_API_URL}?lat=${lat}&lon=${lon}&appid=${API_KEY}`
+    );
+    const data = await response.json();
+    displayAirQuality(data);
 }
 
-// Toggle game state
-function toggleGame() {
-    gameRunning = !gameRunning;
-    startBtn.textContent = gameRunning ? 'Pause Game' : 'Resume Game';
+// Display current weather
+function displayCurrentWeather(data) {
+    const { main, weather, wind, visibility, sys } = data;
     
-    if (gameRunning) {
-        resetBall();
-    }
-}
-
-// Reset game
-function resetGame() {
-    gameRunning = false;
-    playerScore = 0;
-    computerScore = 0;
-    playerScoreDisplay.textContent = playerScore;
-    computerScoreDisplay.textContent = computerScore;
-    startBtn.textContent = 'Start Game';
+    document.getElementById('cityName').textContent = `${data.name}, ${data.sys.country}`;
+    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
     
-    // Reset positions
-    leftPaddleY = GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-    rightPaddleY = GAME_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-    updatePaddlePositions();
+    document.getElementById('temperature').textContent = Math.round(main.temp);
+    document.getElementById('feelsLike').textContent = Math.round(main.feels_like);
+    document.getElementById('description').textContent = weather[0].main + ' - ' + weather[0].description;
+    document.getElementById('humidity').textContent = `${main.humidity}%`;
+    document.getElementById('windSpeed').textContent = `${Math.round(wind.speed * 3.6)} km/h`;
+    document.getElementById('pressure').textContent = `${main.pressure} hPa`;
+    document.getElementById('visibility').textContent = `${(visibility / 1000).toFixed(1)} km`;
+    document.getElementById('maxTemp').textContent = `${Math.round(main.temp_max)}°C`;
+    document.getElementById('minTemp').textContent = `${Math.round(main.temp_min)}°C`;
     
-    resetBall();
+    // Weather icon
+    const iconCode = weather[0].icon;
+    document.getElementById('weatherIcon').src = `https://openweathermap.org/img/wn/${iconCode}@4x.png`;
+    document.getElementById('weatherIcon').alt = weather[0].description;
+    
+    updateLastUpdate();
+    showContent();
 }
 
-// Initialize game
-function init() {
-    resetBall();
-    updatePaddlePositions();
-    updateBallPosition();
-    gameLoop();
+// Display forecast
+function displayForecast(data) {
+    const forecastContainer = document.getElementById('forecastContainer');
+    forecastContainer.innerHTML = '';
+    
+    // Get forecast for every 24 hours (every 8th item in 3-hour forecast)
+    const dailyForecasts = {};
+    
+    data.list.forEach(item => {
+        const date = new Date(item.dt * 1000).toLocaleDateString();
+        if (!dailyForecasts[date]) {
+            dailyForecasts[date] = item;
+        }
+    });
+    
+    // Display next 5 days
+    Object.entries(dailyForecasts).slice(0, 5).forEach(([date, forecast]) => {
+        const card = document.createElement('div');
+        card.className = 'forecast-card';
+        
+        const forecastDate = new Date(forecast.dt * 1000);
+        const dayName = forecastDate.toLocaleDateString('en-US', { weekday: 'short' });
+        const dateStr = forecastDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        card.innerHTML = `
+            <div class="forecast-date">${dayName}, ${dateStr}</div>
+            <div class="forecast-icon">
+                <img src="https://openweathermap.org/img/wn/${forecast.weather[0].icon}@2x.png" alt="${forecast.weather[0].description}">
+            </div>
+            <div class="forecast-temp">
+                <span class="forecast-temp-max">${Math.round(forecast.main.temp_max)}°</span>
+                <span class="forecast-temp-min">${Math.round(forecast.main.temp_min)}°</span>
+            </div>
+            <div class="forecast-desc">${forecast.weather[0].main}</div>
+        `;
+        
+        forecastContainer.appendChild(card);
+    });
 }
 
-// Start the game
-init();
+// Display air quality
+function displayAirQuality(data) {
+    const { main, components } = data;
+    const aqi = main.aqi;
+    
+    // AQI levels
+    const aqiLevels = {
+        1: { label: 'Good', color: '#00e400', bg: '#e8f5e9' },
+        2: { label: 'Fair', color: '#ffff00', bg: '#fffde7' },
+        3: { label: 'Moderate', color: '#ff7e00', bg: '#fff3e0' },
+        4: { label: 'Poor', color: '#ff0000', bg: '#ffebee' },
+        5: { label: 'Very Poor', color: '#8f0000', bg: '#fce4ec' }
+    };
+    
+    const level = aqiLevels[aqi] || aqiLevels[1];
+    
+    document.getElementById('aqiValue').textContent = aqi;
+    document.getElementById('aqiValue').style.background = level.color;
+    document.getElementById('aqiValue').style.color = aqi <= 2 ? '#333' : 'white';
+    document.getElementById('aqiLabel').textContent = level.label;
+    
+    // Update pollutant values
+    document.getElementById('pm25').textContent = `${Math.round(components.pm2_5)} μg/m³`;
+    document.getElementById('pm10').textContent = `${Math.round(components.pm10)} μg/m³`;
+    document.getElementById('no2').textContent = `${Math.round(components.no2)} μg/m³`;
+    document.getElementById('o3').textContent = `${Math.round(components.o3)} μg/m³`;
+}
+
+// Show demo message
+function showDemoMessage() {
+    showContent();
+    showError('⚠️ Demo Mode: Using sample data. To use real weather data, replace API_KEY with your OpenWeatherMap API key (free tier available at openweathermap.org)');
+    
+    // Display sample data
+    const sampleData = {
+        name: 'London',
+        sys: { country: 'GB' },
+        main: {
+            temp: 15,
+            feels_like: 13,
+            humidity: 72,
+            pressure: 1013,
+            temp_max: 18,
+            temp_min: 12
+        },
+        weather: [{ main: 'Partly Cloudy', description: 'partly cloudy', icon: '02d' }],
+        wind: { speed: 4.5 },
+        visibility: 10000
+    };
+    
+    displayCurrentWeather(sampleData);
+    
+    // Sample forecast
+    const sampleForecast = {
+        list: [
+            { dt: Math.floor(Date.now() / 1000) + 86400, main: { temp_max: 18, temp_min: 12 }, weather: [{ icon: '02d', main: 'Partly Cloudy' }] },
+            { dt: Math.floor(Date.now() / 1000) + 172800, main: { temp_max: 16, temp_min: 11 }, weather: [{ icon: '03d', main: 'Cloudy' }] },
+            { dt: Math.floor(Date.now() / 1000) + 259200, main: { temp_max: 17, temp_min: 10 }, weather: [{ icon: '09d', main: 'Rainy' }] },
+            { dt: Math.floor(Date.now() / 1000) + 345600, main: { temp_max: 19, temp_min: 13 }, weather: [{ icon: '01d', main: 'Sunny' }] },
+            { dt: Math.floor(Date.now() / 1000) + 432000, main: { temp_max: 20, temp_min: 14 }, weather: [{ icon: '02d', main: 'Partly Cloudy' }] }
+        ]
+    };
+    
+    displayForecast(sampleForecast);
+}
+
+// Show loading state
+function showLoading() {
+    currentWeatherDiv.style.display = 'block';
+    mainContent.style.display = 'none';
+}
+
+// Show content
+function showContent() {
+    currentWeatherDiv.style.display = 'none';
+    mainContent.style.display = 'block';
+}
+
+// Show error
+function showError(message) {
+    errorMessage.style.display = 'block';
+    errorText.textContent = message;
+    currentWeatherDiv.style.display = 'none';
+}
+
+// Hide error
+function hideError() {
+    errorMessage.style.display = 'none';
+}
+
+// Update last update time
+function updateLastUpdate() {
+    const now = new Date();
+    lastUpdate.textContent = now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
